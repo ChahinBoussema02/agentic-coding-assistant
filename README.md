@@ -35,6 +35,16 @@ User Request
 
 ---
 
+## Why This Architecture?
+
+Most "AI coding assistant" projects are thin wrappers around a single LLM call. This project exists to demonstrate production-grade agentic design patterns:
+
+- **Separation of concerns** — Each agent does one thing well. The Planner never writes code. The Coder never evaluates quality. This mirrors how real engineering teams operate.
+- **Heterogeneous model assignment** — Instead of using one model for everything, each agent gets the model best suited to its task. This is how you'd architect a cost- and latency-optimized pipeline in production.
+- **Deterministic orchestration** — The routing logic is plain Python, not an LLM. Control flow should be boring and predictable. LLMs generate; code decides.
+
+---
+
 ## Architecture
 
 ```
@@ -111,9 +121,13 @@ Change it to any coding task you want the pipeline to solve.
 
 ---
 
-## Status
+## Project Status
 
-The Planner agent is fully implemented and tested. The Coder and Reviewer agents along with the full LangGraph workflow are in active development.
+- [x] Phase 1 — Planner Agent
+- [ ] Phase 2 — Coder Agent
+- [ ] Phase 3 — Reviewer Agent
+- [ ] Phase 4 — LangGraph Orchestration
+- [ ] Phase 5 — Polish & Documentation
 
 ---
 
