@@ -66,7 +66,9 @@ agentic-coding-assistant/
 - **Shared state via TypedDict** — `AgentState` is the single source of truth passed through the entire graph. Each agent reads what it needs and writes only its own field.
 - **Append-only feedback history** — `review_feedback` uses a LangGraph reducer (`operator.add`) so the Coder sees the full review history across all iterations, not just the last one.
 - **Deterministic planning** — The Planner runs at `temperature=0.0`. Same input → same structured spec, every time.
-- **`<think>` tag stripping** — Qwen3 sometimes leaks internal reasoning despite being instructed not to. The Planner strips these at the code level as a belt-and-suspenders defense.
+- **`<think>` tag stripping** — Local models (especially Qwen3) sometimes leak internal reasoning despite being told not to. All three agents strip `<think>` tags at the code level as a belt-and-suspenders defense on top of the prompt instruction.
+- **Markdown fence stripping** — The Coder is instructed to return raw Python, but local models frequently wrap output in ` ```python ``` ` fences anyway. A post-processing step strips them so downstream code is always clean.
+- **Defensive verdict parsing** — The Reviewer's output is parsed with regex against a strict format. If parsing fails for any reason, the system defaults to `FAIL` and retries rather than crashing or silently passing broken code.
 - **Loop guard** — `MAX_ITERATIONS = 3` prevents the Coder→Reviewer loop from running indefinitely on hard problems.
 
 ---
@@ -124,8 +126,8 @@ Change it to any coding task you want the pipeline to solve.
 ## Project Status
 
 - [x] Phase 1 — Planner Agent
-- [ ] Phase 2 — Coder Agent
-- [ ] Phase 3 — Reviewer Agent
+- [x] Phase 2 — Coder Agent
+- [x] Phase 3 — Reviewer Agent
 - [ ] Phase 4 — LangGraph Orchestration
 - [ ] Phase 5 — Polish & Documentation
 
