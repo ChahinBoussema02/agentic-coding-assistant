@@ -1,12 +1,8 @@
-from agents.coder import coder_node
-from agents.planner import planner_node
-from agents.reviewer import reviewer_node
+from graph.workflow import app
+
 
 def run(user_request: str):
-    """Minimal test harness — calls the Planner node directly."""
-
-    # Simulate the initial state that the graph would normally provide
-    state = {
+    initial_state = {
         "user_request": user_request,
         "plan": "",
         "code": "",
@@ -16,44 +12,36 @@ def run(user_request: str):
     }
 
     print("=" * 60)
-    print("PLANNER INPUT:")
+    print("USER REQUEST:")
     print(f"  {user_request}")
     print("=" * 60)
 
-    # Phase 1: Plan
-    planner_result = planner_node(state)
-    state.update(planner_result)
+    # Invoke the compiled graph. LangGraph handles all execution and state merging.
+    final_state = app.invoke(initial_state)
 
+    # --- Report ---
+    print("\n" + "=" * 60)
+    print("FINAL PLAN")
+    print("=" * 60)
+    print(final_state["plan"])
 
-    print("\nPLANNER OUTPUT:")
-    print("-" * 60)
-    print(state["plan"])
-    print("-" * 60)
+    print("\n" + "=" * 60)
+    print("FINAL CODE")
+    print("=" * 60)
+    print(final_state["code"])
 
-    # Phase 2: Code
-    coder_result = coder_node(state)
-    state.update(coder_result)
+    print("\n" + "=" * 60)
+    print("REVIEW HISTORY")
+    print("=" * 60)
+    for i, feedback in enumerate(final_state["review_feedback"], 1):
+        print(f"\n--- Review {i} ---")
+        print(feedback)
 
-    print("\nCODER OUTPUT:")
-    print("-" * 60)
-    print(state["code"])
-    print("-" * 60)
-    print(f"\nIteration count: {state['iteration_count']}")
+    print("\n" + "=" * 60)
+    print(f"FINAL STATUS: {final_state['status']}")
+    print(f"TOTAL ITERATIONS: {final_state['iteration_count']}")
+    print("=" * 60)
 
-    # Phase 3: Review
-    # Manual merge for review_feedback because we're not in a graph yet —
-    # the reducer only fires inside LangGraph. We simulate it here.
-    review_result = reviewer_node(state)
-    state["status"] = review_result["status"]
-    state["review_feedback"] = state["review_feedback"] + review_result["review_feedback"]
-
-    print("\nREVIEWER OUTPUT:")
-    print("-" * 60)
-    print(f"VERDICT: {state['status']}")
-    print(f"\nFEEDBACK:")
-    print(state["review_feedback"][-1])
-    print("-" * 60)
-    print(f"\nIteration count: {state['iteration_count']}")
 
 if __name__ == "__main__":
-    run("Build a Python command-line calculator that supports addition, subtraction, multiplication, and division.")
+    run("Build a Python script that reads a CSV file of employee records (name, department, salary) and outputs a JSON summary showing the average salary per department, sorted from highest to lowest average.")
