@@ -43,28 +43,28 @@ No issues found.
 """
 
 def reviewer_node(state: AgentState) -> dict:
-    # Temperature 0.0 — judgments must be consistent.
-    # Same code + same spec should always produce the same verdict.
-    llm = ChatOllama(model=REVIEWER_MODEL, temperature=0.0)
+    print("\n" + "🔍 " + "─" * 57)
+    print("   REVIEWER — Evaluating code against spec...")
+    print("─" * 60)
 
-    # Multi-input context: the Reviewer needs BOTH the spec and the code to evaluate.
-    review_input = f"""## TECHNICAL SPEC\n{state['plan']}\n\n## GENERATED CODE\n{state['code']}"""
+    llm = ChatOllama(model=REVIEWER_MODEL, temperature=0.0)
+    review_input = f"""## TECHNICAL SPEC
+{state['plan']}
+
+## GENERATED CODE
+{state['code']}"""
+
     messages = [
         SystemMessage(content=REVIEWER_SYSTEM_PROMPT),
         HumanMessage(content=review_input)
     ]
-
     response = llm.invoke(messages)
 
-    # Strip think tags as usual
     raw_output = re.sub(r"<think>.*?</think>", "", response.content, flags=re.DOTALL).strip()
 
-    # Parse the Reviewer's structured Markdown response.
-    verdict_match = re.search(r"## VERDICT\s*(PASS|FAIL)", raw_output, re.IGNORECASE)
-    feedback_match = re.search(r"## FEEDBACK\s*(.*)", raw_output, re.DOTALL)
+    verdict_match = re.search(r"##\s*VERDICT\s*\n\s*(PASS|FAIL)", raw_output, re.IGNORECASE)
+    feedback_match = re.search(r"##\s*FEEDBACK\s*\n(.*)", raw_output, re.DOTALL)
 
-    # Defensive fallback: if parsing fails, default to FAIL.
-    # Better to retry an extra time than crash the graph or pass broken code.
     if verdict_match:
         status = verdict_match.group(1).upper()
     else:
@@ -73,9 +73,13 @@ def reviewer_node(state: AgentState) -> dict:
     if feedback_match:
         feedback = feedback_match.group(1).strip()
     else:
-        feedback = "Parser could not extract structured feedback. Reviewing model output may have deviated from the required format."
+        feedback = "Parser could not extract structured feedback."
+
+    # Live verdict display — user sees the routing decision immediately
+    status_icon = "✅" if status == "PASS" else "❌"
+    print(f"{status_icon} Verdict: {status}")
 
     return {
         "status": status,
-        "review_feedback": [feedback]  # Wrapped in list because of the operator.add reducer
+        "review_feedback": [feedback]
     }

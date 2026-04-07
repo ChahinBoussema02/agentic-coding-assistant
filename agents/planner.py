@@ -50,24 +50,18 @@ We will use the standard `requests` library to send HTTP GET requests to each UR
 - DNS resolution failures for invalid or malformed domains.
 """
 
-def planner_node(state: AgentState) -> str:
-    # Temperature 0.0 — planning is analytical, not creative.
-    # We want the same input to produce the same structured output every time.
-    llm = ChatOllama(model = PLANNER_MODEL, temperature = 0.0)
+def planner_node(state: AgentState) -> dict:
+    print("\n" + "🧠 " + "─" * 58)
+    print("   PLANNER — Analyzing request and designing spec...")
+    print("─" * 60)
 
-    # SystemMessage = the prompt that defines WHO the agent is and HOW it responds.
-    # HumanMessage = the actual task input — pulled straight from state.
+    llm = ChatOllama(model=PLANNER_MODEL, temperature=0.0)
     messages = [
-        SystemMessage(content = PLANNER_SYSTEM_PROMPT),
-        HumanMessage(content = state["user_request"])
+        SystemMessage(content=PLANNER_SYSTEM_PROMPT),
+        HumanMessage(content=state["user_request"])
     ]
     response = llm.invoke(messages)
-
-      # response.content is a string containing the LLM's full output.
-    # We strip <think> tags in case qwen3 ignores our suppression instruction.
-    # This is the "belt AND suspenders" approach — prompt-level + code-level defense.
     clean_plan = re.sub(r"<think>.*?</think>", "", response.content, flags=re.DOTALL).strip()
 
-     # The Planner writes ONE field: the plan. That's its only job.
-    # It doesn't touch code, review_feedback, status, or iteration_count.
+    print("✓ Plan generated")
     return {"plan": clean_plan}

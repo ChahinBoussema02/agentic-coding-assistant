@@ -49,16 +49,17 @@ Most "AI coding assistant" projects are thin wrappers around a single LLM call. 
 
 ```
 agentic-coding-assistant/
-├── main.py              # Entry point / test harness
+├── main.py              # Entry point with CLI and output handling
 ├── config.py            # Model names and loop limits
 ├── requirements.txt
 ├── agents/
 │   ├── planner.py       # Planner agent + system prompt
 │   ├── coder.py         # Coder agent + system prompt
 │   └── reviewer.py      # Reviewer agent + output parser
-└── graph/
-    ├── state.py          # AgentState TypedDict (shared pipeline state)
-    └── workflow.py       # LangGraph graph definition + conditional edges
+├── graph/
+│   ├── state.py         # AgentState TypedDict (shared pipeline state)
+│   └── workflow.py      # LangGraph graph definition + conditional edges
+└── output/              # Generated code files (timestamped)
 ```
 
 ### Key Design Decisions
@@ -66,10 +67,9 @@ agentic-coding-assistant/
 - **Shared state via TypedDict** — `AgentState` is the single source of truth passed through the entire graph. Each agent reads what it needs and writes only its own field.
 - **Append-only feedback history** — `review_feedback` uses a LangGraph reducer (`operator.add`) so the Coder sees the full review history across all iterations, not just the last one.
 - **Deterministic planning** — The Planner runs at `temperature=0.0`. Same input → same structured spec, every time.
-- **`<think>` tag stripping** — Local models (especially Qwen3) sometimes leak internal reasoning despite being told not to. All three agents strip `<think>` tags at the code level as a belt-and-suspenders defense on top of the prompt instruction.
-- **Markdown fence stripping** — The Coder is instructed to return raw Python, but local models frequently wrap output in ` ```python ``` ` fences anyway. A post-processing step strips them so downstream code is always clean.
-- **Defensive verdict parsing** — The Reviewer's output is parsed with regex against a strict format. If parsing fails for any reason, the system defaults to `FAIL` and retries rather than crashing or silently passing broken code.
+- **`<think>` tag stripping** — Qwen3 sometimes leaks internal reasoning despite being instructed not to. The Planner strips these at the code level as a belt-and-suspenders defense.
 - **Loop guard** — `MAX_ITERATIONS = 3` prevents the Coder→Reviewer loop from running indefinitely on hard problems.
+- **Defensive parser fallback** — If the Reviewer's output can't be parsed, the system defaults to FAIL rather than silently passing broken code. Always fail closed, never open.
 
 ---
 
@@ -110,16 +110,56 @@ pip install -r requirements.txt
 ### 3. Run
 
 ```bash
-python main.py
+python main.py "Build a Python command-line calculator that supports addition, subtraction, multiplication, and division."
 ```
 
-The default request in `main.py` is:
+Pass any coding task as a quoted string. Generated code is written to the `output/` directory with a timestamp.
 
-```python
-run("Build a Python command-line calculator that supports addition, subtraction, multiplication, and division.")
+---
+
+## Sample Run
+
+```
+$ python main.py "Build a Python function that checks if a string is a palindrome, ignoring spaces and capitalization."
+
+============================================================
+USER REQUEST:
+  Build a Python function that checks if a string is a palindrome...
+============================================================
+
+🧠 ──────────────────────────────────────────────────────────
+   PLANNER — Analyzing request and designing spec...
+────────────────────────────────────────────────────────────
+✓ Plan generated
+
+⚙️  ─────────────────────────────────────────────────────────
+   CODER — Iteration 1: Generating code...
+────────────────────────────────────────────────────────────
+✓ Code generated (3 lines)
+
+🔍 ─────────────────────────────────────────────────────────
+   REVIEWER — Evaluating code against spec...
+────────────────────────────────────────────────────────────
+✅ Verdict: PASS
+
+============================================================
+✅ FINAL STATUS: PASS — Code approved by Reviewer
+   TOTAL ITERATIONS: 1
+   OUTPUT FILE:      output/generated_20260407_173520.py
+============================================================
 ```
 
-Change it to any coding task you want the pipeline to solve.
+When the Reviewer flags issues, the Coder incorporates the feedback and tries again — up to `MAX_ITERATIONS` times. Each iteration sees the full feedback history, not just the most recent critique.
+
+---
+
+## Known Limitations
+
+This system uses **LLM-as-Judge** for code review, which works well for catching obvious logic errors but is fundamentally less reliable than deterministic validation. In testing, the Reviewer occasionally approves code with subtle issues — for example, missing imports for type hints referenced in function signatures, or edge cases the spec called out but the Coder handled implicitly rather than explicitly.
+
+This is a known tradeoff of LLM-as-Judge architectures, especially when running on local 7B-class models. In a production setting, this layer would be augmented with deterministic checks: a linter pass (`pyflakes`, `ruff`), a type checker (`mypy`), and ideally execution of generated unit tests in a sandboxed environment. The LLM judge catches *semantic* gaps; the deterministic layer catches *syntactic* and *structural* ones. Together, they're stronger than either alone.
+
+The architecture supports adding these layers without changing the agent code — they would simply become additional nodes in the graph, with their own conditional edges feeding into the existing feedback loop.
 
 ---
 
@@ -127,9 +167,9 @@ Change it to any coding task you want the pipeline to solve.
 
 - [x] Phase 1 — Planner Agent
 - [x] Phase 2 — Coder Agent
-- [x] Phase 3 — Reviewer Agent
-- [ ] Phase 4 — LangGraph Orchestration
-- [ ] Phase 5 — Polish & Documentation
+- [x] Phase 3 — Reviewer Agent with structured verdict parsing
+- [x] Phase 4 — LangGraph orchestration with feedback loop
+- [x] Phase 5 — CLI, live logging, file output, failure mode handling
 
 ---
 

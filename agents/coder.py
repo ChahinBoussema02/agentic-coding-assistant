@@ -30,15 +30,16 @@ if __name__ == "__main__":
 """
 
 def coder_node(state: AgentState) -> dict:
+    iteration = state.get("iteration_count", 0) + 1
+    print("\n" + "⚙️  " + "─" * 57)
+    print(f"   CODER — Iteration {iteration}: Generating code...")
+    if state.get("review_feedback"):
+        print(f"   (Incorporating {len(state['review_feedback'])} prior review(s))")
+    print("─" * 60)
+
     llm = ChatOllama(model=CODER_MODEL, temperature=0.2)
 
-    # --- Dynamic context assembly ---
-    # Start with the plan — the Coder ALWAYS needs this.
     context = f"## TECHNICAL SPEC\n{state['plan']}"
-
-    # If there's review feedback from prior iterations, append it.
-    # On iteration 1, review_feedback is an empty list — this block is skipped.
-    # On iteration 2+, the Coder sees exactly what the Reviewer flagged.
     if state.get("review_feedback"):
         feedback_history = "\n".join(
             f"--- Iteration {i+1} ---\n{fb}"
@@ -50,20 +51,14 @@ def coder_node(state: AgentState) -> dict:
         SystemMessage(content=CODER_SYSTEM_PROMPT),
         HumanMessage(content=context)
     ]
-
     response = llm.invoke(messages)
 
-    # Clean up: strip think tags and markdown code fences.
-    # Local models love wrapping code in ```python ... ``` even when told not to.
     clean_code = re.sub(r"<think>.*?</think>", "", response.content, flags=re.DOTALL).strip()
     clean_code = re.sub(r"^```(?:python)?\n?", "", clean_code)
     clean_code = re.sub(r"\n?```$", "", clean_code).strip()
 
-    # Increment the iteration count safely.
-    # .get() with default 0 handles the edge case where the key doesn't exist yet.
-    new_iteration = state.get("iteration_count", 0) + 1
-
+    print(f"✓ Code generated ({len(clean_code.splitlines())} lines)")
     return {
         "code": clean_code,
-        "iteration_count": new_iteration
+        "iteration_count": iteration
     }
